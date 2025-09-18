@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buffalo & Cattle Analysis Tool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style id="app-style">
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f9fafb;
+    }
+    
+    .score-bar {
+      height: 10px;
+      border-radius: 5px;
+      transition: width 0.5s ease;
+    }
+    
+    .image-container {
+      position: relative;
+      aspect-ratio: 4/3;
+      background-color: #e5e7eb;
+      overflow: hidden;
+    }
+    
+    .annotation {
+      position: absolute;
+      border: 2px solid;
+      pointer-events: none;
+      z-index: 10;
+    }
+    
+    .length-annotation {
+      border-color: #3b82f6;
+    }
+    
+    .width-annotation {
+      border-color: #10b981;
+    }
+    
+    .angle-annotation {
+      border-color: #f59e0b;
+    }
+    
+    .annotation-label {
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      position: absolute;
+    }
+    
+    .result-card {
+      transition: transform 0.2s;
+    }
+    
+    .result-card:hover {
+      transform: translateY(-2px);
+    }
+    
+    .pulse {
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        opacity: 0.6;
+      }
+      50% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0.6;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="bg-blue-800 text-white shadow-lg">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fas fa-cow text-2xl"></i>
+        <span class="text-xl font-bold">AnimalMetrics</span>
+      </div>
+      <div>
+        <button class="bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-lg text-sm font-medium">
+          <i class="fas fa-question-circle mr-1"></i> Help
+        </button>
+      </div>
+    </div>
+  </nav>
+  
+  <!-- Main Content -->
+  <main class="container mx-auto px-4 py-6 max-w-6xl">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Buffalo & Cattle Analysis Tool</h1>
+    
+    <!-- Upload/Capture Section -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <button id="uploadBtn" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-4 flex items-center justify-center font-medium text-lg transition">
+          <i class="fas fa-upload mr-2"></i> Upload Image
+        </button>
+        <button id="captureBtn" class="bg-green-600 hover:bg-green-700 text-white rounded-lg py-4 flex items-center justify-center font-medium text-lg transition">
+          <i class="fas fa-camera mr-2"></i> Capture Photo
+        </button>
+      </div>
+      <p class="text-gray-500 text-center text-sm">
+        For best results, ensure the animal is standing side-on in good lighting
+      </p>
+    </div>
+    
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept="image/*" class="hidden">
+    
+    <!-- Initial State -->
+    <div id="initialState" class="text-center py-16">
+      <div class="inline-block p-6 rounded-full bg-gray-100 mb-4">
+        <i class="fas fa-image text-5xl text-gray-400"></i>
+      </div>
+      <h2 class="text-xl font-medium text-gray-600">No image selected</h2>
+      <p class="text-gray-500">Upload or capture an image to begin analysis</p>
+    </div>
+    
+    <!-- Analysis Section (hidden initially) -->
+    <div id="analysisSection" class="hidden">
+      <!-- Image Preview and Annotations -->
+      <div class="image-container mb-6 rounded-lg overflow-hidden">
+        <img id="previewImage" class="w-full h-full object-cover" alt="Animal preview">
+        <div id="annotationsOverlay" class="absolute inset-0 hidden">
+          <!-- Annotations will be inserted here by JS -->
+        </div>
+        <div id="loadingOverlay" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div class="text-center text-white">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mb-3"></div>
+            <p class="font-medium text-lg">Analyzing...</p>
+            <p class="text-sm text-gray-200">This may take a few seconds</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Results Section -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <!-- Measurements -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-ruler mr-2 text-blue-600"></i> Physical Measurements
+          </h3>
+          <table class="w-full">
+            <tbody>
+              <tr class="border-b border-gray-100">
+                <td class="py-3 text-gray-600">Body Length</td>
+                <td id="bodyLength" class="py-3 font-medium text-right">--</td>
+              </tr>
+              <tr class="border-b border-gray-100">
+                <td class="py-3 text-gray-600">Body Width (at withers)</td>
+                <td id="bodyWidth" class="py-3 font-medium text-right">--</td>
+              </tr>
+              <tr>
+                <td class="py-3 text-gray-600">Rump Angle</td>
+                <td id="rumpAngle" class="py-3 font-medium text-right">--</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Classifications -->
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-tags mr-2 text-green-600"></i> Classifications
+          </h3>
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-gray-50 p-3 rounded-lg">
+              <div class="text-gray-500 text-sm mb-1">Species</div>
+              <div id="species" class="font-bold text-lg">--</div>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-lg">
+              <div class="text-gray-500 text-sm mb-1">Gender</div>
+              <div id="gender" class="font-bold text-lg">--</div>
+            </div>
+          </div>
+          
+          <h4 class="text-gray-600 font-medium mb-3 mt-2">Predictive Scores</h4>
+          
+          <!-- Productivity -->
+          <div class="mb-4">
+            <div class="flex justify-between mb-1">
+              <span class="text-sm text-gray-600">Productivity</span>
+              <span id="productivityScore" class="text-sm font-medium">--</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div id="productivityBar" class="score-bar bg-green-500" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <!-- Longevity -->
+          <div class="mb-4">
+            <div class="flex justify-between mb-1">
+              <span class="text-sm text-gray-600">Longevity</span>
+              <span id="longevityScore" class="text-sm font-medium">--</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div id="longevityBar" class="score-bar bg-blue-500" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <!-- Health -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-sm text-gray-600">Health Risk</span>
+              <span id="healthScore" class="text-sm font-medium">--</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div id="healthBar" class="score-bar bg-yellow-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Action buttons -->
+      <div class="flex space-x-4 mb-8">
+        <button id="saveResultBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 flex items-center justify-center font-medium transition">
+          <i class="fas fa-save mr-2"></i> Save Result
+        </button>
+        <button id="startOverBtn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg py-3 flex items-center justify-center font-medium transition">
+          <i class="fas fa-redo mr-2"></i> Start Over
+        </button>
+      </div>
+    </div>
+    
+    <!-- Saved Results -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-history mr-2 text-blue-600"></i> Saved Analyses
+      </h2>
+      
+      <div id="noSavedResults" class="text-center py-8 text-gray-500">
+        <i class="fas fa-folder-open text-3xl mb-2"></i>
+        <p>No saved analyses yet</p>
+      </div>
+      
+      <div id="savedResultsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Saved results will be populated here -->
+      </div>
+    </div>
+  </main>
+  
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-white py-6">
+    <div class="container mx-auto px-4 text-center">
+      <p class="mb-2">AnimalMetrics &copy; 2025 | Field Analysis Tool</p>
+      <p class="text-gray-400 text-sm">A prototype for buffalo and cattle analysis</p>
+    </div>
+  </footer>
+
+  <script id="app-script">
+    document.addEventListener('DOMContentLoaded', function() {
+      // DOM elements
+      const fileInput = document.getElementById('fileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const captureBtn = document.getElementById('captureBtn');
+      const initialState = document.getElementById('initialState');
+      const analysisSection = document.getElementById('analysisSection');
+      const previewImage = document.getElementById('previewImage');
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const annotationsOverlay = document.getElementById('annotationsOverlay');
+      const saveResultBtn = document.getElementById('saveResultBtn');
+      const startOverBtn = document.getElementById('startOverBtn');
+      const noSavedResults = document.getElementById('noSavedResults');
+      const savedResultsList = document.getElementById('savedResultsList');
+      
+      // Measurement display elements
+      const bodyLengthEl = document.getElementById('bodyLength');
+      const bodyWidthEl = document.getElementById('bodyWidth');
+      const rumpAngleEl = document.getElementById('rumpAngle');
+      
+      // Classification display elements
+      const speciesEl = document.getElementById('species');
+      const genderEl = document.getElementById('gender');
+      
+      // Score elements
+      const productivityScoreEl = document.getElementById('productivityScore');
+      const productivityBarEl = document.getElementById('productivityBar');
+      const longevityScoreEl = document.getElementById('longevityScore');
+      const longevityBarEl = document.getElementById('longevityBar');
+      const healthScoreEl = document.getElementById('healthScore');
+      const healthBarEl = document.getElementById('healthBar');
+      
+      // Current analysis data
+      let currentAnalysis = null;
+      
+      // Initialize saved results
+      loadSavedResults();
+      
+      // Event listeners
+      uploadBtn.addEventListener('click', () => {
+        fileInput.click();
+      });
+      
+      captureBtn.addEventListener('click', () => {
+        // In a real app, this would access the device camera
+        alert('Camera functionality would be implemented here. For now, please use the Upload button.');
+      });
+      
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          
+          // Show analysis section
+          initialState.classList.add('hidden');
+          analysisSection.classList.remove('hidden');
+          
+          // Preview image
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            
+            // Show loading state
+            loadingOverlay.classList.remove('hidden');
+            annotationsOverlay.classList.add('hidden');
+            
+            // Simulate API call for analysis
+            setTimeout(analyzeImage, 2000);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      saveResultBtn.addEventListener('click', () => {
+        if (currentAnalysis) {
+          saveResult(currentAnalysis);
+          showSuccessToast('Analysis saved successfully!');
+        }
+      });
+      
+      startOverBtn.addEventListener('click', () => {
+        resetAnalysis();
+      });
+      
+      // Function to analyze the image
+      function analyzeImage() {
+        // This is a prototype, so we'll just simulate analysis results
+        const mockResults = {
+          id: Date.now(),
+          timestamp: new Date().toISOString(),
+          image: previewImage.src,
+          measurements: {
+            bodyLength: Math.floor(Math.random() * 50) + 150 + ' cm',
+            bodyWidth: Math.floor(Math.random() * 20) + 50 + ' cm',
+            rumpAngle: Math.floor(Math.random() * 20) + 20 + '°'
+          },
+          classification: {
+            species: Math.random() > 0.5 ? 'Buffalo' : 'Cattle',
+            gender: Math.random() > 0.5 ? 'Male' : 'Female'
+          },
+          scores: {
+            productivity: Math.floor(Math.random() * 40) + 60,
+            longevity: Math.floor(Math.random() * 40) + 60,
+            health: Math.floor(Math.random() * 40) + 60
+          },
+          annotations: {
+            length: {
+              x: 10,
+              y: 150,
+              width: 380,
+              height: 2
+            },
+            width: {
+              x: 250,
+              y: 50,
+              width: 2,
+              height: 100
+            },
+            angle: {
+              x: 300,
+              y: 180,
+              angle: 25
+            }
+          }
+        };
+        
+        // Update UI with results
+        displayResults(mockResults);
+        
+        // Store current analysis
+        currentAnalysis = mockResults;
+      }
+      
+      // Function to display results in UI
+      function displayResults(data) {
+        // Hide loading overlay
+        loadingOverlay.classList.add('hidden');
+        
+        // Update measurements
+        bodyLengthEl.textContent = data.measurements.bodyLength;
+        bodyWidthEl.textContent = data.measurements.bodyWidth;
+        rumpAngleEl.textContent = data.measurements.rumpAngle;
+        
+        // Update classifications
+        speciesEl.textContent = data.classification.species;
+        genderEl.textContent = data.classification.gender;
+        
+        // Update scores
+        productivityScoreEl.textContent = data.scores.productivity + '/100';
+        productivityBarEl.style.width = data.scores.productivity + '%';
+        
+        longevityScoreEl.textContent = data.scores.longevity + '/100';
+        longevityBarEl.style.width = data.scores.longevity + '%';
+        
+        healthScoreEl.textContent = data.scores.health + '/100';
+        healthBarEl.style.width = data.scores.health + '%';
+        
+        // Add annotations to image
+        displayAnnotations(data.annotations);
+      }
+      
+      // Function to display annotations on the image
+      function displayAnnotations(annotations) {
+        // Clear previous annotations
+        annotationsOverlay.innerHTML = '';
+        
+        // Length annotation (horizontal line)
+        const lengthAnnotation = document.createElement('div');
+        lengthAnnotation.className = 'annotation length-annotation';
+        lengthAnnotation.style.left = annotations.length.x + 'px';
+        lengthAnnotation.style.top = annotations.length.y + 'px';
+        lengthAnnotation.style.width = annotations.length.width + 'px';
+        lengthAnnotation.style.height = annotations.length.height + 'px';
+        
+        const lengthLabel = document.createElement('div');
+        lengthLabel.className = 'annotation-label';
+        lengthLabel.style.left = (annotations.length.x + annotations.length.width/2 - 30) + 'px';
+        lengthLabel.style.top = (annotations.length.y - 25) + 'px';
+        lengthLabel.textContent = 'Length';
+        
+        // Width annotation (vertical line)
+        const widthAnnotation = document.createElement('div');
+        widthAnnotation.className = 'annotation width-annotation';
+        widthAnnotation.style.left = annotations.width.x + 'px';
+        widthAnnotation.style.top = annotations.width.y + 'px';
+        widthAnnotation.style.width = annotations.width.width + 'px';
+        widthAnnotation.style.height = annotations.width.height + 'px';
+        
+        const widthLabel = document.createElement('div');
+        widthLabel.className = 'annotation-label';
+        widthLabel.style.left = (annotations.width.x - 40) + 'px';
+        widthLabel.style.top = (annotations.width.y + annotations.width.height/2) + 'px';
+        widthLabel.textContent = 'Width';
+        
+        // Angle annotation
+        const angleAnnotation = document.createElement('div');
+        angleAnnotation.className = 'annotation angle-annotation';
+        angleAnnotation.style.left = annotations.angle.x + 'px';
+        angleAnnotation.style.top = annotations.angle.y + 'px';
+        angleAnnotation.style.width = '40px';
+        angleAnnotation.style.height = '2px';
+        angleAnnotation.style.transform = `rotate(${annotations.angle.angle}deg)`;
+        angleAnnotation.style.transformOrigin = 'left center';
+        
+        const angleLabel = document.createElement('div');
+        angleLabel.className = 'annotation-label';
+        angleLabel.style.left = (annotations.angle.x + 50) + 'px';
+        angleLabel.style.top = (annotations.angle.y - 10) + 'px';
+        angleLabel.textContent = `${annotations.angle.angle}°`;
+        
+        // Add annotations to overlay
+        annotationsOverlay.appendChild(lengthAnnotation);
+        annotationsOverlay.appendChild(lengthLabel);
+        annotationsOverlay.appendChild(widthAnnotation);
+        annotationsOverlay.appendChild(widthLabel);
+        annotationsOverlay.appendChild(angleAnnotation);
+        annotationsOverlay.appendChild(angleLabel);
+        
+        // Show annotations
+        annotationsOverlay.classList.remove('hidden');
+      }
+      
+      // Function to save a result to LocalStorage
+      function saveResult(data) {
+        // Get existing saved results
+        let savedResults = JSON.parse(localStorage.getItem('animalMetricsResults') || '[]');
+        
+        // Add new result
+        savedResults.push(data);
+        
+        // Save back to LocalStorage
+        localStorage.setItem('animalMetricsResults', JSON.stringify(savedResults));
+        
+        // Update UI
+        loadSavedResults();
+      }
+      
+      // Function to load saved results from LocalStorage
+      function loadSavedResults() {
+        const savedResults = JSON.parse(localStorage.getItem('animalMetricsResults') || '[]');
+        
+        if (savedResults.length === 0) {
+          noSavedResults.classList.remove('hidden');
+          savedResultsList.classList.add('hidden');
+        } else {
+          noSavedResults.classList.add('hidden');
+          savedResultsList.classList.remove('hidden');
+          
+          // Clear current list
+          savedResultsList.innerHTML = '';
+          
+          // Add saved results
+          savedResults.forEach((result) => {
+            const card = createResultCard(result);
+            savedResultsList.appendChild(card);
+          });
+        }
+      }
+      
+      // Function to create a result card
+      function createResultCard(result) {
+        const card = document.createElement('div');
+        card.className = 'result-card bg-gray-50 rounded-lg overflow-hidden shadow-sm';
+        
+        const formattedDate = new Date(result.timestamp).toLocaleString();
+        const species = result.classification.species;
+        
+        card.innerHTML = `
+          <div class="h-32 bg-gray-200 overflow-hidden">
+            <img src="${result.image}" class="w-full h-full object-cover" alt="${species}">
+          </div>
+          <div class="p-3">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="font-medium">${species}</div>
+                <div class="text-xs text-gray-500">${formattedDate}</div>
+              </div>
+              <button class="delete-btn text-gray-400 hover:text-red-500" data-id="${result.id}">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+            <div class="mt-2 text-xs grid grid-cols-2 gap-1">
+              <div class="text-gray-500">Length:</div>
+              <div class="text-right font-medium">${result.measurements.bodyLength}</div>
+              <div class="text-gray-500">Width:</div>
+              <div class="text-right font-medium">${result.measurements.bodyWidth}</div>
+            </div>
+          </div>
+        `;
+        
+        // Add delete event listener
+        card.querySelector('.delete-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteResult(result.id);
+        });
+        
+        // Add view event listener
+        card.addEventListener('click', () => {
+          viewSavedResult(result);
+        });
+        
+        return card;
+      }
+      
+      // Function to delete a result
+      function deleteResult(id) {
+        // Get current saved results
+        let savedResults = JSON.parse(localStorage.getItem('animalMetricsResults') || '[]');
+        
+        // Filter out the result to delete
+        savedResults = savedResults.filter(result => result.id !== id);
+        
+        // Save back to LocalStorage
+        localStorage.setItem('animalMetricsResults', JSON.stringify(savedResults));
+        
+        // Update UI
+        loadSavedResults();
+        
+        showSuccessToast('Result deleted');
+      }
+      
+      // Function to view a saved result
+      function viewSavedResult(result) {
+        // Show analysis section
+        initialState.classList.add('hidden');
+        analysisSection.classList.remove('hidden');
+        
+        // Display the saved result
+        previewImage.src = result.image;
+        displayResults(result);
+        
+        // Store as current analysis
+        currentAnalysis = result;
+      }
+      
+      // Function to reset the analysis
+      function resetAnalysis() {
+        // Show initial state
+        initialState.classList.remove('hidden');
+        analysisSection.classList.add('hidden');
+        
+        // Reset form
+        fileInput.value = '';
+        currentAnalysis = null;
+      }
+      
+      // Function to show a success toast
+      function showSuccessToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white py-2 px-4 rounded-lg shadow-lg z-50 flex items-center';
+        toast.innerHTML = `
+          <i class="fas fa-check-circle mr-2"></i>
+          <span>${message}</span>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+          toast.classList.add('opacity-0');
+          toast.style.transition = 'opacity 0.5s ease';
+          setTimeout(() => {
+            document.body.removeChild(toast);
+          }, 500);
+        }, 3000);
+      }
+    });
+  </script>
+</body>
+</html>
