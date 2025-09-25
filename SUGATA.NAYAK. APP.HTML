@@ -1,0 +1,903 @@
+import React, { useState } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+  Image,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Search, Filter, Heart, Activity, AlertTriangle } from "lucide-react-native";
+import { useLivestockStore } from "@/store/livestock-store";
+
+export default function AnimalsScreen() {
+  const { animals } = useLivestockStore();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("all");
+  const insets = useSafeAreaInsets();
+
+  const filteredAnimals = animals.filter(animal => {
+    const query = searchQuery.trim();
+    if (query.length > 100) return false;
+    const matchesSearch = animal.id.toLowerCase().includes(query.toLowerCase()) ||
+                         animal.breed.toLowerCase().includes(query.toLowerCase());
+    const filter = selectedFilter.trim();
+    if (filter.length > 20) return false;
+    const matchesFilter = filter === "all" || animal.type === filter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const AnimalCard = ({ animal }: { animal: any }) => {
+    const getHealthStatusColor = (status: string) => {
+      switch (status) {
+        case 'healthy': return '#22c55e';
+        case 'warning': return '#f59e0b';
+        case 'critical': return '#ef4444';
+        default: return '#64748b';
+      }
+    };
+
+    const getHealthStatusIcon = (status: string) => {
+      switch (status) {
+        case 'healthy': return Heart;
+        case 'warning': return AlertTriangle;
+        case 'critical': return Activity;
+        default: return Heart;
+      }
+    };
+
+    const StatusIcon = getHealthStatusIcon(animal.healthStatus);
+
+    return (
+      <TouchableOpacity style={styles.animalCard}>
+        <View style={styles.animalImageContainer}>
+          <Image
+            source={{ uri: animal.image }}
+            style={styles.animalImage}
+            resizeMode="cover"
+          />
+          <View style={[styles.healthBadge, { backgroundColor: getHealthStatusColor(animal.healthStatus) }]}>
+            <StatusIcon size={16} color="white" />
+          </View>
+        </View>
+        
+        <View style={styles.animalInfo}>
+          <View style={styles.animalHeader}>
+            <Text style={styles.animalId}>{animal.id}</Text>
+            <Text style={styles.animalType}>{animal.type}</Text>
+          </View>
+          
+          <Text style={styles.animalBreed}>{animal.breed}</Text>
+          
+          <View style={styles.animalStats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Age</Text>
+              <Text style={styles.statValue}>{animal.age} years</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Weight</Text>
+              <Text style={styles.statValue}>{animal.weight} kg</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Productivity</Text>
+              <Text style={styles.statValue}>{animal.productivity}%</Text>
+            </View>
+          </View>
+          
+          <View style={styles.healthMetrics}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Length: {animal.measurements.length}cm</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Width: {animal.measurements.width}cm</Text>
+            </View>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricLabel}>Rump Angle: {animal.measurements.rumpAngle}°</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={['#22c55e', '#16a34a']}
+        style={styles.header}
+      >
+        <Text style={styles.headerTitle}>Animal Management</Text>
+        <Text style={styles.headerSubtitle}>
+          {animals.length} animals in your farm
+        </Text>
+      </LinearGradient>
+
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Search size={20} color="#64748b" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search animals..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        
+        <TouchableOpacity style={styles.filterButton}>
+          <Filter size={20} color="#22c55e" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.filterTabs}>
+        {['all', 'buffalo', 'cattle'].map((filter) => (
+          <TouchableOpacity
+            key={filter}
+            style={[
+              styles.filterTab,
+              selectedFilter === filter && styles.activeFilterTab
+            ]}
+            onPress={() => {
+              const sanitizedFilter = filter.trim();
+              if (sanitizedFilter.length <= 20) {
+                setSelectedFilter(sanitizedFilter);
+              }
+            }}
+          >
+            <Text style={[
+              styles.filterTabText,
+              selectedFilter === filter && styles.activeFilterTabText
+            ]}>
+              {filter.charAt(0).toUpperCase() + filter.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView style={styles.animalsList} showsVerticalScrollIndicator={false}>
+        {filteredAnimals.map((animal) => (
+          <AnimalCard key={animal.id} animal={animal} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  filterButton: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  filterTabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'white',
+  },
+  activeFilterTab: {
+    backgroundColor: '#22c55e',
+  },
+  filterTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  activeFilterTabText: {
+    color: 'white',
+  },
+  animalsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  animalCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  animalImageContainer: {
+    position: 'relative',
+    height: 200,
+  },
+  animalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  healthBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    borderRadius: 20,
+    padding: 8,
+  },
+  animalInfo: {
+    padding: 16,
+  },
+  animalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  animalId: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  animalType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#22c55e',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  animalBreed: {
+    fontSize: 16,
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  animalStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  healthMetrics: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metricItem: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  metricLabel: {
+    fontSize: 12,
+    color: '#475569',
+  },
+});
+
+
+app/(tabs)/add.tsx
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+366
+367
+368
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+82 unchanged lines
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Analyze this livestock image and classify it as either buffalo or cattle. Also estimate the following details: breed (if identifiable), approximate age in years, productivity percentage (based on appearance), body length in cm, body width in cm, rump angle in degrees, potential diseases or health issues (if visible), estimated movement speed in km/h, overall health score (0-100), and estimated weight in kg. Return the result in JSON format with keys: type, breed, age, productivity, length, width, rumpAngle, disease, speed, healthScore, estimatedWeight. If any value cannot be estimated, use null.',
+              text: 'Analyze this livestock image and classify it as either buffalo or cattle. Also estimate the following details with high accuracy: breed (if identifiable from common breeds), approximate age in years based on physical appearance, productivity percentage (based on body condition and health indicators), body length in cm (from nose to tail base), body width in cm (chest width), rump angle in degrees (angle of the hindquarters), potential diseases or health issues (if visible signs like lesions, abnormal posture, or poor body condition), estimated movement speed in km/h based on breed and build, overall health score (0-100 based on body condition, coat quality, and vitality), and estimated weight in kg based on body proportions. For measurements, use standard livestock assessment methods. Return the result in JSON format with keys: type, breed, age, productivity, length, width, rumpAngle, disease, speed, healthScore, estimatedWeight. If any value cannot be confidently estimated, use null. Be precise with measurements.',
+            },
+            {
+              type: 'image',
+              image: base64,
+            },
+272 unchanged lines
+                Breed: {classificationResult.breed || 'Not detected'}{'\n'}
+                Age: {classificationResult.age || 'Unknown'} years{'\n'}
+                Weight: {classificationResult.estimatedWeight || 'Unknown'} kg{'\n'}
+                Productivity: {classificationResult.productivity || 'Unknown'}%{'\n'}
+                Health Score: {classificationResult.healthScore || 'Unknown'}/100{'\n'}
+                Length: {classificationResult.length || 'Unknown'} cm{'\n'}
+                Width: {classificationResult.width || 'Unknown'} cm{'\n'}
+                Rump Angle: {classificationResult.rumpAngle || 'Unknown'}°{'\n'}
+                Potential Disease: {classificationResult.disease || 'None detected'}{'\n'}
+                Estimated Speed: {classificationResult.speed || 'Unknown'} km/h
+              </Text>
+            </View>
+          </View>
+301 unchanged lines
+
+app/(tabs)/dashboard.tsx
+75
+76
+77
+78
+79
+80
+81
+82
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+9 unchanged lines
+          <View style={[styles.statusDot, { backgroundColor: statusColors[status] }]} />
+        </View>
+        <Text style={styles.healthLabel}>{label}</Text>
+        <Text style={styles.healthValue}>
+          {value} <Text style={styles.healthUnit}>{unit}</Text>
+        </Text>
+      </View>
+    );
+50 unchanged lines
+              <HealthIndicator
+                label="Temperature"
+                value={38.5}
+                unit="°C"
+                status="good"
+                icon={Thermometer}
+              />
+              <HealthIndicator
+                label="Heart Rate"
+                value={72}
+                unit="BPM"
+                status="good"
+                icon={Heart}
+              />
+              <HealthIndicator
+                label="Oxygen Level"
+                value={98}
+                unit="%"
+                status="good"
+                icon={Wind}
+              />
+              <HealthIndicator
+                label="Hydration"
+                value={85}
+                unit="%"
+                status="warning"
+                icon={Droplets}
+              />
+              <HealthIndicator
+                label="Respiratory Rate"
+                value={28}
+                unit="breaths/min"
+                status="good"
+                icon={Stethoscope}
+              />
+              <HealthIndicator
+                label="Blood Pressure"
+                value={120}
+                unit="mmHg"
+                status="good"
+                icon={Gauge}
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+16 unchanged lines
+              <View style={styles.activityItem}>
+                <View style={[styles.activityDot, { backgroundColor: '#3b82f6' }]} />
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityTitle}>Productivity report</Text>
+                  <Text style={styles.activityTime}>Weekly summary - 1 day ago</Text>
+                </View>
+              </View>
+              <View style={styles.activityItem}>
+                <View style={[styles.activityDot, { backgroundColor: '#8b5cf6' }]} />
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityTitle}>AI classification completed</Text>
+                  <Text style={styles.activityTime}>New buffalo added - 3 hours ago</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+141 unchanged lines
+
+app/(tabs)/animals/[animalId].tsx
+321
+322
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338
+339
+340
+341
+342
+343
+344
+345
+346
+347
+348
+349
+350
+351
+352
+353
+354
+355
+356
+357
+358
+359
+360
+361
+362
+363
+364
+365
+366
+367
+368
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381
+382
+383
+384
+385
+386
+387
+388
+389
+390
+391
+392
+393
+394
+395
+396
+397
+398
+399
+400
+401
+402
+403
+import React from "react";
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  measurementLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  measurementValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  metricCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    width: '47%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  metricLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginLeft: 8,
+  },
+  metricValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  metricUnit: {
+    fontSize: 14,
+    fontWeight: 'normal',
+    color: '#64748b',
+  },
+  performanceGrid: {
+    gap: 12,
+  },
+  performanceItem: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  performanceContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  performanceLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  performanceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+});
+
+app/(tabs)/animals/_layout.tsx
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+import { Stack } from 'expo-router';
+
+export default function AnimalsLayout() {
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="[animalId]" />
+    </Stack>
+  );
+}
+
+app/(tabs)/animals/index.tsx
+253
+254
+255
+256
+257
+258
+259
+260
+261
+262
+263
+264
+265
+266
+267
+268
+269
+270
+271
+272
+273
+274
+275
+276
+277
+278
+279
+280
+281
+282
+283
+284
+285
+286
+287
+288
+289
+290
+291
+292
+293
+294
+295
+296
+297
+298
+299
+300
+301
+302
+303
+304
+305
+306
+307
+308
+309
+310
+311
+312
+313
+314
+315
+316
+317
+318
+319
+320
+321
+322
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338
+339
+340
+341
+342
+343
+import React, { useState } from "react";
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  animalCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  animalImageContainer: {
+    position: 'relative',
+    height: 200,
+  },
+  animalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  healthBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    borderRadius: 20,
+    padding: 8,
+  },
+  animalInfo: {
+    padding: 16,
+  },
+  animalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  animalId: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  animalType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#22c55e',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  animalBreed: {
+    fontSize: 16,
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  animalStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  healthMetrics: {
+    flexDirection: 'row',
